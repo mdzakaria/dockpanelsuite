@@ -3,6 +3,8 @@ using System.Windows.Forms;
 using System.Drawing;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
+using WeifenLuo.WinFormsUI.Util;
 
 namespace WeifenLuo.WinFormsUI.Docking
 {
@@ -911,6 +913,15 @@ namespace WeifenLuo.WinFormsUI.Docking
                 Activate();
         }
 
+    public void CaptureWindowThumbnail()
+    {
+      if (DockPanel != null && DockPanel.ShowDockWindowThumbnail)
+      {
+        ScreenCapture scapture = new ScreenCapture();
+        this.ToolTipImage = scapture.CaptureWindow(this.Form.Handle);
+      }
+    }
+
         public void Show(DockPanel dockPanel, DockState dockState)
         {
             if (dockPanel == null)
@@ -950,6 +961,18 @@ namespace WeifenLuo.WinFormsUI.Docking
             DockState = dockState;
             dockPanel.ResumeLayout(true, true); //we'll resume the layout before activating to ensure that the position
             Activate();                         //and size of the form are finally processed before the form is shown
+
+      if (DockPanel.ShowDockWindowThumbnail)
+      {
+        //Let the window to be drawn first before capturing window thumbnail
+        Thread.Sleep(50);
+        Application.DoEvents();
+        Thread.Sleep(50);
+        Application.DoEvents();
+        //this.CaptureWindowThumbnail();
+        this.Form.Invoke(new MethodInvoker(() => CaptureWindowThumbnail()));
+
+      }
         }
 
         [SuppressMessage("Microsoft.Naming", "CA1720:AvoidTypeNamesInParameters")]
@@ -1253,5 +1276,7 @@ namespace WeifenLuo.WinFormsUI.Docking
         }
 
         #endregion
+
+    public Image ToolTipImage { get; set; }
     }
 }

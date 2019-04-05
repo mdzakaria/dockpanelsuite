@@ -8,6 +8,8 @@ namespace WeifenLuo.WinFormsUI.Docking
 {
     public class DockContent : Form, IDockContent
     {
+    public int CurrentContentID { get; set; }
+    public String DockContentID {get; set;}
         public DockContent()
         {
             m_dockHandler = new DockContentHandler(this, new GetPersistStringCallback(GetPersistString));
@@ -16,6 +18,23 @@ namespace WeifenLuo.WinFormsUI.Docking
             {
                 //Suggested as a fix by bensty regarding form resize
                 this.ParentChanged += new EventHandler(DockContent_ParentChanged);
+            }
+        }
+
+        /// <summary>
+        /// Initialize <see cref="DockContent"/> with a predefined ContentId. This will allow more than one windows of same <see cref="Type"/>
+        /// </summary>
+        /// <param name="contentID"></param>
+        public DockContent(string contentID)
+        {
+            CurrentContentID = -1;
+            DockContentID = contentID;
+            m_dockHandler = new DockContentHandler(this, GetPersistString);
+            m_dockHandler.DockStateChanged += DockHandler_DockStateChanged;
+            if (PatchController.EnableFontInheritanceFix != true)
+            {
+                //Suggested as a fix by bensty regarding form resize
+                ParentChanged += DockContent_ParentChanged;
             }
         }
 
@@ -161,7 +180,7 @@ namespace WeifenLuo.WinFormsUI.Docking
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
         protected virtual string GetPersistString()
         {
-            return GetType().ToString();
+      return String.IsNullOrEmpty(DockContentID) ? GetType().ToString() : DockContentID;
         }
 
         [LocalizedCategory("Category_Docking")]

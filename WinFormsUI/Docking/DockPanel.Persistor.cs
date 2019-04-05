@@ -232,7 +232,9 @@ namespace WeifenLuo.WinFormsUI.Docking
 
             public static void SaveAsXml(DockPanel dockPanel, Stream stream, Encoding encoding, bool upstream)
             {
-                XmlWriter xmlOut = XmlWriter.Create(stream, new XmlWriterSettings() { Encoding = encoding, Indent = true });
+                var xmlOut = new XmlTextWriter(stream, encoding) {Formatting = Formatting.Indented};
+
+                // Use indenting for readability
 
                 if (!upstream)
                     xmlOut.WriteStartDocument();
@@ -361,13 +363,13 @@ namespace WeifenLuo.WinFormsUI.Docking
                     xmlOut.Flush();
             }
 
-            public static void LoadFromXml(DockPanel dockPanel, string fileName, DeserializeDockContent deserializeContent)
+            public static void LoadFromXml(DockPanel dockPanel, string fileName, DeserializeDockContent deserializeContent, bool forceLoad)
             {
                 using (var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read))
                 {
                     try
                     {
-                        LoadFromXml(dockPanel, fs, deserializeContent, true);
+                        LoadFromXml(dockPanel, fs, deserializeContent, true, forceLoad);
                     }
                     finally
                     {
@@ -507,10 +509,13 @@ namespace WeifenLuo.WinFormsUI.Docking
                 return floatWindows;
             }
 
-            public static void LoadFromXml(DockPanel dockPanel, Stream stream, DeserializeDockContent deserializeContent, bool closeStream)
+            public static void LoadFromXml(DockPanel dockPanel, Stream stream, DeserializeDockContent deserializeContent, bool closeStream, bool forceLoad)
             {
-                if (dockPanel.Contents.Count != 0)
+
+                if (dockPanel.Contents.Count != 0 && !forceLoad)
+                {
                     throw new InvalidOperationException(Strings.DockPanel_LoadFromXml_AlreadyInitialized);
+                }
 
                 DockPanelStruct dockPanelStruct;
                 ContentStruct[] contents;
@@ -782,7 +787,7 @@ namespace WeifenLuo.WinFormsUI.Docking
         /// <exception cref="Exception">Deserialization might throw exceptions.</exception>
         public void LoadFromXml(string fileName, DeserializeDockContent deserializeContent)
         {
-            Persistor.LoadFromXml(this, fileName, deserializeContent);
+            Persistor.LoadFromXml(this, fileName, deserializeContent, false);
         }
 
         /// <summary>
@@ -790,13 +795,14 @@ namespace WeifenLuo.WinFormsUI.Docking
         /// </summary>
         /// <param name="stream">The stream.</param>
         /// <param name="deserializeContent">Deserialization handler.</param>
+        /// <param name="forceLoad"></param>
         /// <exception cref="Exception">Deserialization might throw exceptions.</exception>
         /// <remarks>
         /// The stream is closed after deserialization.
         /// </remarks>
-        public void LoadFromXml(Stream stream, DeserializeDockContent deserializeContent)
+        public void LoadFromXml(Stream stream, DeserializeDockContent deserializeContent, bool forceLoad)
         {
-            Persistor.LoadFromXml(this, stream, deserializeContent, true);
+            Persistor.LoadFromXml(this, stream, deserializeContent, true, forceLoad);
         }
 
         /// <summary>
@@ -805,10 +811,11 @@ namespace WeifenLuo.WinFormsUI.Docking
         /// <param name="stream">The stream.</param>
         /// <param name="deserializeContent">Deserialization handler.</param>
         /// <param name="closeStream">The flag to close the stream after deserialization.</param>
+        /// <param name="forceLoad"></param>
         /// <exception cref="Exception">Deserialization might throw exceptions.</exception>
-        public void LoadFromXml(Stream stream, DeserializeDockContent deserializeContent, bool closeStream)
+        public void LoadFromXml(Stream stream, DeserializeDockContent deserializeContent, bool closeStream, bool forceLoad)
         {
-            Persistor.LoadFromXml(this, stream, deserializeContent, closeStream);
+            Persistor.LoadFromXml(this, stream, deserializeContent, closeStream, forceLoad);
         }
     }
 }

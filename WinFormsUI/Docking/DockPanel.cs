@@ -103,6 +103,35 @@ namespace WeifenLuo.WinFormsUI.Docking
             }
         }
 
+    private bool _showDockWindowThumbnail = false;
+    [Browsable(false)]
+    public bool ShowDockWindowThumbnail
+    {
+      get{return _showDockWindowThumbnail;} set{_showDockWindowThumbnail = value;}
+    }
+
+    private bool _confirmMultipleDockClose = false;
+    /// <summary>
+    /// Show a confirmation message before closing multiple dockable windows at once.
+    /// </summary>
+    [Browsable(false)]
+    public bool ConfirmMultipleDockClose
+    {
+      get { return _confirmMultipleDockClose; } set { _confirmMultipleDockClose = value; }
+    }
+
+    private string _multipleDockCloseMessage = "Want to close multiple dock windows at once?";
+    /// <summary>
+    /// The confirmation message to be shown if multiple docks are closing at once.
+    /// </summary>
+    [Browsable(false)]
+    public string MultipleDockCloseMessage
+    {
+      get { return _multipleDockCloseMessage; }
+      set { _multipleDockCloseMessage = value; }
+    }
+
+
         private bool ShouldSerializeDockBackColor()
         {
             return !m_BackColor.IsEmpty;

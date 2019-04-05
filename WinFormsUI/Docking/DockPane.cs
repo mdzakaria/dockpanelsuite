@@ -502,8 +502,13 @@ namespace WeifenLuo.WinFormsUI.Docking
             CloseContent(ActiveContent);
         }
 
+    /// <summary>
+    /// Close from dock pane (via mouse middle button or close button)
+    /// </summary>
+    public bool DockPaneClose { get; private set; }
         internal void CloseContent(IDockContent content)
         {
+      DockPaneClose = true;
             if (content == null)
                 return;
 
@@ -529,6 +534,7 @@ namespace WeifenLuo.WinFormsUI.Docking
             }
             finally
             {
+        DockPaneClose = false;
                 dockPanel.ResumeLayout(true, true);
             }
         }
@@ -774,6 +780,20 @@ namespace WeifenLuo.WinFormsUI.Docking
             else
                 ActiveContent = null;
         }
+
+    //public event PaneStripRightClickEventHandler PaneStripRightClick;
+    private static readonly object PaneStripRightClickEvent = new object();
+    public event EventHandler PaneStripRightClick
+    {
+      add { Events.AddHandler(PaneStripRightClickEvent, value); }
+      remove { Events.RemoveHandler(PaneStripRightClickEvent, value); }
+    }
+    internal void OnPaneStripRightClicked(IDockContent content, MouseEventArgs e)
+    {
+      EventHandler handler = (EventHandler)Events[PaneStripRightClickEvent];
+      if (handler != null)
+        handler(content, e);
+    }
 
         private static readonly object DockStateChangedEvent = new object();
         public event EventHandler DockStateChanged

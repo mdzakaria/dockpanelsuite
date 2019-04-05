@@ -4,8 +4,10 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Security.Permissions;
 using System.Diagnostics.CodeAnalysis;
+using WeifenLuo.WinFormsUI.Util;
 
 namespace WeifenLuo.WinFormsUI.Docking
 {
@@ -142,6 +144,27 @@ namespace WeifenLuo.WinFormsUI.Docking
             SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
             SetStyle(ControlStyles.Selectable, false);
             AllowDrop = true;
+
+      _imageToolTip.AutoPopDelay = 5000;
+      _imageToolTip.InitialDelay = 1000;
+      _tipTimer.Interval = 1000;
+      _tipTimer.Tick += delegate (object sender, EventArgs e)
+      {
+        try
+        {
+          ShowDockContentAsToolTip();
+        }
+        catch(Exception ex)
+        {
+          Trace.TraceError(ex.Message);
+        }
+        finally
+        {
+          _canShowToolTip = true;
+        }
+        
+      };
+
         }
 
         private DockPane m_dockPane;
@@ -204,32 +227,49 @@ namespace WeifenLuo.WinFormsUI.Docking
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
-            int index = HitTest();
+
+            int index = HitTest(e.Location);
+
             if (index != -1)
             {
+                IDockContent content;
                 if (e.Button == MouseButtons.Middle)
                 {
                     // Close the specified content.
-                    TryCloseTab(index);
+                    content = Tabs[index].Content;
+                    if (DockPane.DockPanel.ShowDockWindowThumbnail && _tipContent == content)
+                    {
+                        HideContentTooltip(_tipContent, _imageToolTip);
+                        _canShowToolTip = true;
+                    }
+
+                    content.DockHandler.Activate();
+                    DockPane.CloseContent(content);
                 }
                 else
                 {
-                    IDockContent content = Tabs[index].Content;
+                    content = Tabs[index].Content;
                     if (DockPane.ActiveContent != content)
                     {
-                        // Test if the content should be active
-                        if (MouseDownActivateTest(e))
-                            DockPane.ActiveContent = content;
+                        if (this.DockPane.DockPanel.ShowDockWindowThumbnail)
+                        {
+                            DockPane.ActiveContent.DockHandler.CaptureWindowThumbnail();
+                        }
+
+                        DockPane.ActiveContent = content;
                     }
-
                 }
-            }
 
-            if (e.Button == MouseButtons.Left)
-            {
-                var dragSize = SystemInformation.DragSize;
-                _dragBox = new Rectangle(new Point(e.X - (dragSize.Width / 2),
-                                                e.Y - (dragSize.Height / 2)), dragSize);
+                if (e.Button == MouseButtons.Left)
+                {
+                    var dragSize = SystemInformation.DragSize;
+                    _dragBox = new Rectangle(new Point(e.X - (dragSize.Width / 2),
+                                                    e.Y - (dragSize.Height / 2)), dragSize);
+                }
+                if (e.Button == MouseButtons.Right)
+                {
+                    DockPane.OnPaneStripRightClicked(content, e);
+                }
             }
         }
 
@@ -291,6 +331,14 @@ namespace WeifenLuo.WinFormsUI.Docking
                 ShowTabPageContextMenu(new Point(e.X, e.Y));
         }
 
+    private ImageToolTip _imageToolTip = new ImageToolTip();
+    private Image _tipImage = null;
+    private Timer _tipTimer = new Timer();
+    private bool _canShowToolTip = true;
+    private IDockContent _tipContent = null;
+
+    public ImageToolTip ImageToolTip { get { return _imageToolTip; } private set { _imageToolTip = value; } }
+
         [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         protected override void WndProc(ref Message m)
         {
@@ -308,6 +356,44 @@ namespace WeifenLuo.WinFormsUI.Docking
 
                 return;
             }
+      else if (DockPane.DockPanel != null && DockPane.DockPanel.ShowDockWindowThumbnail)
+      {
+        base.WndProc(ref m);
+        //Show/Hide image thumbnail based on WM_MOUSE_MESSAGE
+        if (m.Msg == (int)Win32.Msgs.WM_MOUSELEAVE)
+        {
+          // Hide thumbnail
+          if (_tipContent != null)
+          {
+            HideContentTooltip(_tipContent, _imageToolTip);
+          }
+        }
+        else if (m.Msg == (int)Win32.Msgs.WM_MOUSEMOVE)
+        {
+          // Show if not already showing
+          //if (!_canShowToolTip)
+          {
+            int index = HitTest();
+            if (index >= 0)
+            {
+              IDockContent movetocontent = Tabs[index].Content;
+              if (_tipContent != movetocontent)
+              {
+                HideContentTooltip(_tipContent, _imageToolTip);
+              }
+            }
+          }
+        }
+        else if (m.Msg == (int)Win32.Msgs.WM_MOUSEHOVER)
+        {
+          if (_canShowToolTip)
+          {
+            _canShowToolTip = false;
+            _tipTimer.Start();
+          }
+        }
+        return;
+      }
 
             base.WndProc(ref m);
             return;
@@ -343,6 +429,63 @@ namespace WeifenLuo.WinFormsUI.Docking
 
             return new Rectangle(parent.PointToScreen(new Point(rectangle.Left, rectangle.Top)), new Size(rectangle.Width, rectangle.Height));
         }
+    public void HideContentTooltip(IDockContent content, ImageToolTip imageToolTip)
+    {
+      try
+      {
+        imageToolTip.RemoveAll();
+        imageToolTip.Hide(content.DockHandler.Form);
+        _lastContent = null;
+      }
+      catch (Exception ex)
+      {
+        Trace.TraceError(ex.Message);
+      }
+
+    }
+
+
+    private void ShowDockContentAsToolTip()
+    {
+      int index = HitTest();
+      if (index >= 0)
+      {
+        _tipContent = Tabs[index].Content;
+        // ONLY show tooltip for hidden dock contents
+        if (DockPane.ActiveContent != _tipContent)
+        {
+          _canShowToolTip = false;
+          _tipImage = _tipContent.DockHandler.ToolTipImage;
+          ShowThumbnailImage(_tipContent, _tipImage, _imageToolTip);
+        }
+        else if (_tipContent != null)
+        {
+          HideContentTooltip(_tipContent, _imageToolTip);
+        }
+      }
+    }
+
+    private Point _lastPosition = new Point(0, 0);
+    private IDockContent _lastContent = null;
+    public void ShowThumbnailImage(IDockContent tipContent, Image tipImage, ImageToolTip imageToolTip, int xOffset = 0, int yOffset = 10)
+    {
+      if (tipImage != null && _lastContent != tipContent 
+        && (_lastPosition.X != Cursor.Position.X || _lastPosition.Y != Cursor.Position.Y))
+      {
+        _lastContent = tipContent;
+        _lastPosition = Cursor.Position;
+        int outputWidth = (tipImage.Width / 3) < 400 ? 400 : tipImage.Width / 3;
+        int outputHeight = (tipImage.Height / 3) < 300 ? 300 : tipImage.Height / 3;
+        Point startPoint = tipContent.DockHandler.Form.PointToClient(new Point(Cursor.Position.X+xOffset, Cursor.Position.Y + yOffset));
+        imageToolTip.ToolTipImage = ScreenCapture.ScaleImage(tipImage, outputWidth, outputHeight);
+        //imageToolTip.ToolTipImage = ScreenCapture.ScaleImage(tipImage, 50);
+        String txt = tipContent.DockHandler.Form.Text;
+        imageToolTip.ToolTipTitle = txt;
+        imageToolTip.Show(txt, tipContent.DockHandler.Form, startPoint, imageToolTip.AutoPopDelay);
+      }
+    }
+
+
 
         protected override AccessibleObject CreateAccessibilityInstance()
         {
